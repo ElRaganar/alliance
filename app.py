@@ -81,7 +81,7 @@ def get_chat_url():
             "httpslistenurl": data.get("https_listen_url")
         })
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error":"Unable to connect" }), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=10000)

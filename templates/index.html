@@ -114,11 +114,11 @@
                 break;
             }
           } catch (parseErr) {
-            addLine(`<div class="error">⚠️ JSON parse error: ${parseErr.message}</div>`);
+            addLine(`<div class="error">⚠️ JSON parse error: </div>`);
           }
         }
       } catch (err) {
-        addLine(`<div class="error">Connection error: ${err.message}</div>`);
+        addLine(`<div class="error">Connection error: </div>`);
       }
     }
 
@@ -129,10 +129,10 @@
         const resp = await fetch(`/get_chat_url?alliance=${encodeURIComponent(alliance)}`);
         if (!resp.ok) throw new Error(await resp.text());
         const data = await resp.json();
-        if (!data.httpslistenurl) throw new Error("No chat URL received");
+        if (!data.httpslistenurl) throw new Error("No chat  received");
         streamChat(data.httpslistenurl);
       } catch (e) {
-        addLine(`<div class="error">Server OFF ${e.message}</div>`);
+        addLine(`<div class="error">Server OFF [To many people connecting to same chat ]</div>`);
       }
     };
   </script>
