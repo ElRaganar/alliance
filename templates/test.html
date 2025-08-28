@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Alliance Chat Stream</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #f0f2f5;
+      font-family: Arial, sans-serif;
+    }
+    #chat {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 1rem;
+      height: 90vh;
+      overflow-y: auto;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+    }
+    .message {
+      margin-bottom: 0.75rem;
+      line-height: 1.4;
+    }
+    .timestamp {
+      color: #888;
+      font-size: 0.8rem;
+      margin-right: 0.5rem;
+    }
+    .name {
+      font-weight: bold;
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div style="max-width:800px;margin:1rem auto;">
+    <label for="alliance">Select Alliance:</label>
+    <select id="alliance"></select>
+    <button id="connectBtn">Connect</button>
+  </div>
+  <div id="chat"></div>
+
+  <script>
+    const alliances = {{ alliances|tojson }};
+    const select = document.getElementById("alliance");
+    const connectBtn = document.getElementById("connectBtn");
+    const chatBox = document.getElementById("chat");
+    let currentReader = null;
+
+    // Populate dropdown
+    alliances.forEach(name => {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      select.appendChild(opt);
+    });
+
+    function addLine(html) {
+      const div = document.createElement("div");
+      div.innerHTML = html;
+      chatBox.appendChild(div);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    async function streamChat(url) {
+      chatBox.innerHTML = "";
+      if (currentReader) {
+        try { currentReader.cancel(); } catch {}
+      }
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+
+        const reader = response.body
+          .pipeThrough(new TextDecoderStream())
+          .pipeThrough(
+            new TransformStream({
+              transform(chunk, controller) {
+                chunk.split("\n").forEach(line => controller.enqueue(line));
+              }
+            })
+          )
+          .getReader();
+        currentReader = reader;
+
+        while (true) {
+          const { value: line, done } = await reader.read();
+          if (done) break;
+          if (!line) continue;
+          try {
+            const obj = JSON.parse(line);
+            switch (obj.type) {
+              case "message":
+                addLine(
+                  `<div class="message">
+                    <span class="timestamp">[${new Date(obj.sent).toLocaleTimeString()}]</span>
+                    <span class="name">${obj.__name}</span>: ${obj.msg}
+                  </div>`
+                );
+                break;
+              case "room_info":
+                addLine(
+                  `<div class="message"><em>📡 ${obj.num_members} members online</em></div>`
+                );
+                break;
+              default:
+                break;
+            }
+          } catch (parseErr) {
+            addLine(`<div class="error">⚠️ JSON parse error: </div>`);
+          }
+        }
+      } catch (err) {
+        addLine(`<div class="error">Connection error: </div>`);
+      }
+    }
+
+    connectBtn.onclick = async () => {
+      const alliance = select.value;
+      chatBox.innerHTML = "<em>Connecting...</em>";
+      try {
+        const resp = await fetch(`/get_chat_url?alliance=${encodeURIComponent(alliance)}`);
+        if (!resp.ok) throw new Error(await resp.text());
+        const data = await resp.json();
+        if (!data.httpslistenurl) throw new Error("No chat  received");
+        streamChat(data.httpslistenurl);
+      } catch (e) {
+        addLine(`<div class="error">Server OFF [To many people connecting to same chat ]</div>`);
+      }
+    };
+  </script>
+</body>
+</html>
